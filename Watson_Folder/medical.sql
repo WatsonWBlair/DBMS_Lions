@@ -45,18 +45,15 @@ CREATE TABLE invoices(
     FOREIGN KEY (patient_id) REFERENCES patients(patient_id),
 )
 CREATE TABLE appointments(
-    appointment_id int NOT NULL,
-    date_time DATETIME,
+    date_time DATETIME NOT NULL,
     location varchar(255) NOT NULL,
     patient_id int NOT NULL,
     patient_notes varchar(255),
     doctor_id int NOT NULL,
     doctor_notes varchar(255),
-    PRIMARY KEY (appointment_id),
+    PRIMARY KEY (patient_id, doctor_id, date_time),
     FOREIGN KEY (patient_id) REFERENCES patients(patient_id),
     FOREIGN KEY (doctor_id) REFERENCES doctors(doctor_id),
-    FOREIGN KEY (patient_id) REFERENCES patients(patient_id),
-
 )
 CREATE TABLE prescriptions(
     prescription_id int NOT NULL,
