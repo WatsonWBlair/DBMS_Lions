@@ -46,11 +46,7 @@ These tables are optimized for write operations.
 
 
 ## Triggers
-- On thread creation, add threadID to all users in thread
-    - block editing threads
-- On user deletion, migrate users media to abandonedMedia table.
-- Update age/calculated attributes
-    - if age indicates that today is the users birthday, trigger a birthday message.
-- Can we hijack the deletion process to preserve records?
-    - overwrite delete command to bit flip 'deleted' attribute
-- When media is uploaded, generate a thumbnail asset, this asset will have high replication across tables.
+- Initialize calculated fields when instantiating a new user.
+- Propagate thread membership when starting a new thread.
+- Overwrite default deletion functionality for all tables
+
