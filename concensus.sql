@@ -17,7 +17,7 @@ CREATE TABLE users(
         -- {[{thread_id, subject}],} - creates bidirectional link between users and messages via threads.
         
     posts JSON, liked_posts JSON,
-        -- {[{id: int, thumbnail: int}]}
+        -- {[{id: int, thumbnail: blob}]}
         -- enables `lazy loading` by providing basic information for immediate display
         -- thumbnail refrences a small image resource for the post.
     deleted TINYINT(1), 
@@ -122,6 +122,7 @@ CREATE TABLE archived_media LIKE media;
 -- Triggers and Procedures
 -- Trigger that converts DOB into age using TIMESTAMPDIFF function
 DELIMITER //
+-- When Inserting a user record, calculate their age.
 DROP TRIGGER IF EXISTS ageCalc
 CREATE TRIGGER ageCalc
 AFTER INSERT ON user
@@ -129,7 +130,9 @@ BEGIN
 UPDATE user SET age = TIMESTAMPDIFF(year, birth_date, CURDATE()) WHERE user_id = NEW.user_id;
 END //
 
+-- custom deletion implementation:
 
+-- OLAP tables have a `deleted` indicator
 DROP TRIGGER IF EXISTS deleteUser
 CREATE TRIGGER deleteUser
 INSTEAD OF DELETE ON user
@@ -137,7 +140,6 @@ BEGIN
 UPDATE users SET deleted=1 WHERE user_id = OLD.user_id;
 archiveUser(OLD.user_id);
 END//
-
 DROP TRIGGER IF EXISTS deletePost
 CREATE TRIGGER deletePost
 INSTEAD OF DELETE ON posts, 
@@ -145,6 +147,7 @@ BEGIN
 UPDATE posts SET deleted=1 WHERE post_id = OLD.post_id;
 END//
 
+-- OLTP tables have archived_ companion tables
 DROP TRIGGER IF EXISTS deleteMessages
 CREATE TRIGGER deleteMessages
 AFTER DELETE ON media, 
@@ -176,7 +179,9 @@ BEGIN
 INSERT INTO archived_media OLD 
 END//
 
-
+-- Data Propagation:
+-- our schema includes some data replication, these triggers ensure entity integrity.
+-- note that replicated data points are not critical to platform operation.
 DROP TRIGGER IF EXISTS threadPropagation
 CREATE TRIGGER threadPropagation
 AFTER INSERT ON threads
