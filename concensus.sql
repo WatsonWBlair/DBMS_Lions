@@ -71,7 +71,7 @@ CREATE TABLE comments(
     reply_to int NOT NULL,
     content JSON,
     deleted TINYINT(1),
-    PRIMARY KEY (user_id),
+    PRIMARY KEY (comment_id),
     FOREIGN KEY (from_id) REFERENCES users(user_id),
 )
 
