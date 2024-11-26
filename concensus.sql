@@ -10,7 +10,7 @@ CREATE TABLE users(
     gender ENUM ('male', 'female', 'non-binary'),
     advertisement_metadata JSON,
     user_metadata JSON,
-        -- {create_timestamp: int, birth_date: int, perental_restrictions: bool, ect.... }
+        -- {create_timestamp: int, birth_date: int, parental_restrictions: bool, ect.... }
         -- using the JSON data type here allows us to more easily develop this property
         -- as domain constrains around user protection and data collection evolve. 
     messages JSON,
@@ -243,3 +243,119 @@ BEGIN
 END//
 
 DELIMITER ;
+
+INSERT INTO users(user_id,name, user_name, email, birth_year, gender,advertisement_metadata JSON,user_metadata JSON,messages JSON,posts JSON, liked_posts JSON,deleted)
+VALUES(1, 'Mike Griffin', 'mjg', 'hotmail@gmail.com', 1999, 'male', 
+    '{"interests": ["books", "sports"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
+    '{"create_timestamp": 1698316800, "birth_date": 19850101, "parental_restrictions": false}', 
+    '[{"thread_id": 1001, "subject": "Welcome!"}]', 
+    '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
+    '[{"id": 3, "thumbnail": null}]', 
+    0),
+    (2, 'Watson Blair', 'WLB', 'gmail@compuserve.com', 1988, 'male', 
+    '{"interests": ["tech", "running"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
+    '{"create_timestamp": 1698316800, "birth_date": 19880101, "parental_restrictions": false}', 
+    '[{"thread_id": 1001, "subject": "Welcome!"}]', 
+    '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
+    '[{"id": 3, "thumbnail": null}]', 
+    0),
+    (3, 'Leon Lion', 'llion', 'compuserve@compuserve.com', 2000, 'female', 
+    '{"interests": ["TV", "Video Games"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
+    '{"create_timestamp": 1698316800, "birth_date": 20000101, "parental_restrictions": false}', 
+    '[{"thread_id": 1001, "subject": "Welcome!"}]', 
+    '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
+    '[{"id": 3, "thumbnail": null}]', 
+    0),
+    (4, 'Will Torres', 'WWT', 'hotmail@gmail.com', 1996, 'non-binary', 
+    '{"interests": ["metal music", "Queens"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
+    '{"create_timestamp": 1698316800, "birth_date": 19960101, "parental_restrictions": false}', 
+    '[{"thread_id": 1001, "subject": "Welcome!"}]', 
+    '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
+    '[{"id": 3, "thumbnail": null}]', 
+    0),
+    (5, 'Mack McGee', 'MMG', 'gmail@hotmail.com', 2001, 'male', 
+    '{"interests": ["fishing", "hunting"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
+    '{"create_timestamp": 1698316800, "birth_date": 20010101, "parental_restrictions": false}', 
+    '[{"thread_id": 1001, "subject": "Welcome!"}]', 
+    '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
+    '[{"id": 3, "thumbnail": null}]', 
+    0);
+
+INSERT INTO posts(post_id,poster_id,thumbnail,content,deleted,private,commentCount,likeCount) 
+VALUE(1,11, NULL,'I enjoy eating ice cream',0,0,1,1,1),
+(2,12,'I do not enjoy riding the train',0,0,1,1,1),
+(3,13,'I am looking forward to Christmas',0,0,1,2,2),
+(4,14,'我喜欢看胖女人吃双层芝士汉堡',0,0,2,2,2),
+(5,15,'أريد السفر إلى المريخ',1,1,1,1,1);
+
+INSERT INTO media (user_id,timestamp,mediaMetadata,media,thumbnail) 
+VALUES
+(1, 1698316800, 
+    '{"creator": 1, "creationTimestamp": 1698316800, "description": "User profile picture", "tags": ["profile", "picture"]}', 
+    x'89504E470D0A1A0A0000000D49484452', 
+    x'FFD8FFE000104A464946'),
+(2, 1698320400, 
+    '{"creator": 2, "creationTimestamp": 1698320400, "description": "Event photo", "tags": ["event", "photo"]}', 
+    x'89504E470D0A1A0A0000000D49484452', 
+    x'FFD8FFE000104A464946'),
+(3, 1698324000, 
+    '{"creator": 3, "creationTimestamp": 1698324000, "description": "Product image", "tags": ["product", "advertisement"]}', 
+    x'89504E470D0A1A0A0000000D49484452', 
+    x'FFD8FFE000104A464946'),
+(4, 1698327600, 
+    '{"creator": 4, "creationTimestamp": 1698327600, "description": "Vacation video thumbnail", "tags": ["vacation", "video"]}', 
+    x'89798F470D0A1A0A0000000D49484452', 
+    x'FFD8FGE000104A464946'),
+(5, 1698331200, 
+    '{"creator": 5, "creationTimestamp": 1698331200, "description": "Marketing banner", "tags": ["marketing", "banner"]}', 
+    x'89504E470D0A1A0A0003450D49484452', 
+    x'FFD8FFE234104A464946');
+
+INSERT INTO saved_posts (user_id,post_id,deactivated) 
+VALUES
+(1, 11, 0),
+(2,12,0),
+(3,13,0),
+(4,14,0),
+(5,15,0);
+
+INSERT INTO favorite_posts(user_id,post_id,deactivated) 
+VALUES
+(1, 11, 0),
+(2,12,0),
+(3,13,0),
+(4,14,0),
+(5,15,0);
+
+INSERT INTO comments (comment_id,on_post,reply_to,content,deleted,from_id) 
+VALUES
+(1, 101, 0, '{"text": "I enjoy peanut butter", "likes": 1}', 0, 1), 
+(2, 101, 1, '{"text": "I also enjoy peanut butter.", "likes": 2}', 0, 2), 
+(3, 102, 0, '{"text": "I do not enjoy peanut butter", "likes": 10}', 0, 3), 
+(4, 102, 3, '{"text": "People who like peanut butter make me sick.", "likes": 4}', 1, 1), 
+(5, 103, 0, '{"text": "I enjoy covering my body in peanut butter.", "likes": 3}', 1, 4); 
+
+INSERT INTO threads (thread_id,members) 
+VALUES
+(1, '{"ids": [1, 2, 3]}'),
+(2,'{"ids": [1, 3, 4]}'),
+(3,'{"ids": [4, 2, 3]}'),
+(4,'{"ids": [4]}'),
+(5,'{"ids": [3]}');
+
+INSERT INTO messages (timestamp,sender_id,thread_id,message,media,deleted) 
+VALUES
+(1698316800, 1, 1, 'Hello, how are you?', 1, 0),
+(1698316800, 2, 1, 'Im doing okay, how are you?', 1, 0),
+(1698316800, 3, 1, 'Not too bad, how are you?', 1, 0),
+(1698316800, 4, 1, 'You already asked me that', 1, 1),
+(1698316800, 5, 1, 'Im doing well, how are you?', 1, 0);
+
+INSERT INTO likes (post_id,user_id,comment_id,time_liked) 
+VALUES
+(101, 1, 1, '2024-11-25 14:30:00'), 
+(102, 2, 3, '2024-11-25 15:00:00'), 
+(101, 3, 2, '2024-11-25 15:30:00'), 
+(103, 4, 5, '2024-11-25 16:00:00'), 
+(104, 1, 4, '2024-11-25 16:30:00'); 
+
