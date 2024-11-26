@@ -8,6 +8,7 @@ CREATE TABLE users(
     birth_year INT, 
     age INT CHECK (age>18),
     gender ENUM ('male', 'female', 'non-binary'),
+    birth_date DATETIME,
     advertisement_metadata JSON,
     user_metadata JSON,
         -- {create_timestamp: int, birth_date: int, parental_restrictions: bool, ect.... }
@@ -35,19 +36,21 @@ CREATE TABLE posts(
     commentCount int,
     likeCount int,
     PRIMARY KEY (post_id),
-    FOREIGN KEY (poster_id) REFERENCES user(user_id)
+    FOREIGN KEY (poster_id) REFERENCES users(user_id)
 );
 
 -- OLTP Tables
 DROP TABLE IF EXISTS media;
 CREATE TABLE media(
+    media_id int NOT NULL,
     user_id int NOT NULL,
     timestamp int NOT NULL,
     mediaMetadata JSON NOT NULL,
         -- {creator: user_id, creationTimestamp: int, etc...}
     media BLOB NOT NULL,
     thumbnail BLOB NOT NULL,
-    PRIMARY KEY(user_id, timestamp)
+    PRIMARY KEY(media_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 DROP TABLE IF EXISTS saved_posts;
@@ -69,10 +72,11 @@ CREATE TABLE comments(
     comment_id int NOT NULL,
     on_post int NOT NULL,
     reply_to int NOT NULL,
+    user_id int NOT NULL,
     content JSON,
     deleted TINYINT(1),
     PRIMARY KEY (comment_id),
-    FOREIGN KEY (from_id) REFERENCES users(user_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 
@@ -85,50 +89,55 @@ CREATE TABLE threads(
 );
 DROP TABLE IF EXISTS messages;
 CREATE TABLE messages(
-    timestamp int NOT NULL,
-    sender_id int NOT NULL,
-    thread_id int NOT NULL,
-
+    timestamp INT NOT NULL,
+    sender_id INT NOT NULL,
+    thread_id INT NOT NULL,
     message NVARCHAR(255),
-        -- String portion of the message
-    media int NOT NULL,
-    
+    media_id INT NOT NULL,
     deleted TINYINT(1) NOT NULL,
-
     PRIMARY KEY (timestamp, sender_id),
-    FOREIGN KEY (media) REFERENCES media(media_id)
+    FOREIGN KEY (media_id) REFERENCES media(media_id),
     FOREIGN KEY (sender_id) REFERENCES users(user_id),
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id)
 );
 -- added from Mike's individual work to create a separate table independently storing unique likes
+DROP TABLE IF EXISTS likes;
 CREATE TABLE likes(
-    like_id INT AUTO INCREMENT PRIMARY KEY,
+    like_id INT PRIMARY KEY,
     post_id INT NOT NULL,
     user_id INT NOT NULL,
     comment_id INT NOT NULL,
-    time_liked TIMESTAMP DEFAULT CURRENT TIMESTAMP,
-    foreign key (post_id) REFERENCES posts(post_id),
-    foreign key (user_id) REFERENCES user(user_id) ON DELETE CASCADE
-    foreign key (comment_id) REFERENCES comments(comment_id),
+    time_liked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (comment_id) REFERENCES comments(comment_id),
     UNIQUE (user_id, post_id, comment_id)
 );
 -- added archived data tables to store data from deleted users
+DROP TABLE IF EXISTS archived_messages;
 CREATE TABLE archived_messages LIKE messages;
-CREATE TABLE archived_saved_posts LIKE savedPosts:
+DROP TABLE IF EXISTS archived_saved_posts;
+CREATE TABLE archived_saved_posts LIKE saved_posts;
+DROP TABLE IF EXISTS archived_favorite_posts;
 CREATE TABLE archived_favorite_posts LIKE favorite_posts;
+DROP TABLE IF EXISTS archived_likes;
 CREATE TABLE archived_likes LIKE likes;
+DROP TABLE IF EXISTS archived_media;
 CREATE TABLE archived_media LIKE media;
 
 -- Triggers and Procedures
 -- Trigger that converts DOB into age using TIMESTAMPDIFF function
 DELIMITER //
 -- When Inserting a user record, calculate their age.
-DROP TRIGGER IF EXISTS ageCalc
-CREATE TRIGGER ageCalc
+DROP TRIGGER IF EXISTS ageCalc//
+CREATE TRIGGER ageCalc 
 AFTER INSERT ON user
+FOR EACH ROW
 BEGIN
-    UPDATE user SET age = TIMESTAMPDIFF(year, birth_date, CURDATE()) WHERE user_id = NEW.user_id;
-END //
+    UPDATE user 
+    SET age = TIMESTAMPDIFF(YEAR, NEW.birth_date, CURDATE()) 
+    WHERE user_id = NEW.user_id;
+END//
 
 -- custom deletion implementation:
 
@@ -358,4 +367,3 @@ VALUES
 (101, 3, 2, '2024-11-25 15:30:00'), 
 (103, 4, 5, '2024-11-25 16:00:00'), 
 (104, 1, 4, '2024-11-25 16:30:00'); 
-
