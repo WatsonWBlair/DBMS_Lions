@@ -184,7 +184,35 @@ BEGIN
 DECLARE @user_ids
 SELECT @user_ids = JSON_VALUE(messages,'$.') from NEW
 UPDATE users 
-SET messages = JSON_MODIFY(users.messages, 'append $.', NEW.thread_id) WHERE users.user_id IN @usr_ids;
+SET messages = JSON_MODIFY(users.messages, 'append $.', NEW.thread_id) WHERE users.user_id IN @user_ids;
+END//
+
+DROP TRIGGER IF EXISTS likePropagation
+CREATE TRIGGER likePropagation
+AFTER INSERT ON likes
+BEGIN
+DECLARE @post_id
+DECLARE @user_id
+SELECT @user_id = user_id, @post_id = post_id from NEW
+UPDATE users 
+SET liked_posts = JSON_MODIFY(
+    users.liked_posts,
+    'append $.',
+    '{post_id:',@post_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
+END//
+
+DROP TRIGGER IF EXISTS postPropagation
+CREATE TRIGGER likePropagation
+AFTER INSERT ON posts
+BEGIN
+DECLARE @post_id
+DECLARE @user_id
+SELECT @user_id = user_id, @post_id = post_id from NEW
+UPDATE users 
+SET posts = JSON_MODIFY(
+    users.posts,
+    'append $.',
+    '{post_id:',NEW.thread_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
 END//
 
 DELIMITER ;
