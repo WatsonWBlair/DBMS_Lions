@@ -2,7 +2,8 @@
 DROP TABLE IF EXISTS users;
 CREATE TABLE users(
     user_id int NOT NULL,
-    name NVARCHAR(255) NOT NULL, -- NVARCHAR allows for non-western-european characters.
+    name NVARCHAR(255) NOT NULL,
+    user_name NVARCHAR(255) NOT NULL,
     email NVARCHAR(255) NOT NULL,
     birth_year INT, 
     age INT CHECK (age>18),
@@ -11,18 +12,15 @@ CREATE TABLE users(
     user_metadata JSON,
         -- {create_timestamp: int, birth_date: int, perental_restrictions: bool, ect.... }
         -- using the JSON data type here allows us to more easily develop this property
-        -- as domain constrains around user pertection and data collection evolve. 
-
-    deleted TINYINT(1), 
-    
+        -- as domain constrains around user protection and data collection evolve. 
     messages JSON,
         -- {[{thread_id, subject}],} - creates bidirectional link between users and messages via threads.
-        -- NOTE that this property is updated via ETL processes, update cycles generate a fresh RDD instance.
+        
     posts JSON, liked_posts JSON,
         -- {[{id: int, thumbnail: int}]}
         -- enables `lazy loading` by providing basic information for immediate display
         -- thumbnail refrences a small image resource for the post.
-
+    deleted TINYINT(1), 
     PRIMARY KEY (user_id)
 )
 
@@ -39,17 +37,6 @@ CREATE TABLE posts(
     PRIMARY KEY (post_id),
     FOREIGN KEY (poster_id) REFERENCES user(user_id)
 )
--- This table was create by Watson, but we are going to add the archive tables that can be filled using the function below
--- -- Media uploaded by users who have deactivated their account.
--- DROP TABLE IF EXISTS abandonedMedia;
--- CREATE TABLE abandonedMedia(
---     media_id int NOT NULL,
---     media_metadata JSON NOT NULL,
---         -- {creator: user_id, creationTimestamp: int, deletionTimestamp: int, }
---     media BLOB NOT NULL,
-)
-
-
 
 -- OLTP Tables
 DROP TABLE IF EXISTS media;
@@ -57,21 +44,21 @@ CREATE TABLE media(
     user_id int NOT NULL,
     timestamp int NOT NULL,
     mediaMetadata JSON NOT NULL,
-        -- {creator: user_id, creationTimestamp: int,  }
+        -- {creator: user_id, creationTimestamp: int, etc...}
     media BLOB NOT NULL,
-    thumbnail BLOB NOT NULL, -- queries can be made that do not select the media blob, this will help keep packet size low if just the thumbnail is requested.
+    thumbnail BLOB NOT NULL,
     PRIMARY KEY(user_id, timestamp)
 )
 
-DROP TABLE IF EXISTS savedPosts;
-CREATE TABLE savedPosts(
+DROP TABLE IF EXISTS saved_posts;
+CREATE TABLE saved_posts(
     user_id int NOT NULL,
     post_id int NOT NULL,
     deactivated TINYINT(1),
     PRIMARY KEY(user_id, post_id)
 )
 DROP TABLE IF EXISTS favorite_posts;
-CREATE TABLE favoritePosts(
+CREATE TABLE favorite_posts(
     user_id int NOT NULL,
     post_id int NOT NULL,
     deactivated TINYINT(1),
@@ -102,12 +89,14 @@ CREATE TABLE messages(
     sender_id int NOT NULL,
     thread_id int NOT NULL,
 
-    message NVARCHAR(255), -- String portion of the message
-    media int NOT NULL, -- Media message, ID refrences entry in S3 bucket.
+    message NVARCHAR(255),
+        -- String portion of the message
+    media int NOT NULL,
     
     deleted TINYINT(1) NOT NULL,
-    
+
     PRIMARY KEY (timestamp, sender_id),
+    FOREIGN KEY (media) REFERENCES media(media_id)
     FOREIGN KEY (sender_id) REFERENCES users(user_id),
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id)
 )
@@ -128,30 +117,88 @@ CREATE TABLE archived_messages LIKE messages;
 CREATE TABLE archived_saved_posts LIKE savedPosts:
 CREATE TABLE archived_favorite_posts LIKE favorite_posts;
 CREATE TABLE archived_likes LIKE likes;
-
-
+CREATE TABLE archived_media LIKE media;
 
 -- Triggers and Procedures
 -- Trigger that converts DOB into age using TIMESTAMPDIFF function
 DELIMITER //
-CREATE TRIGGER agecalc
+DROP TRIGGER IF EXISTS ageCalc
+CREATE TRIGGER ageCalc
 AFTER INSERT ON user
-FOR EACH ROW
 BEGIN
-UPDATE user
-SET age = TIMESTAMPDIFF(year, birth_date, CURDATE())
-WHERE user_id = NEW.user_id;
+UPDATE user SET age = TIMESTAMPDIFF(year, birth_date, CURDATE()) WHERE user_id = NEW.user_id;
 END //
+
+
+DROP TRIGGER IF EXISTS deleteUser
+CREATE TRIGGER deleteUser
+INSTEAD OF DELETE ON user
+BEGIN
+UPDATE users SET deleted=1 WHERE user_id = OLD.user_id;
+archiveUser(OLD.user_id);
+END//
+
+DROP TRIGGER IF EXISTS deletePost
+CREATE TRIGGER deletePost
+INSTEAD OF DELETE ON posts, 
+BEGIN
+UPDATE posts SET deleted=1 WHERE post_id = OLD.post_id;
+END//
+
+DROP TRIGGER IF EXISTS deleteMessages
+CREATE TRIGGER deleteMessages
+AFTER DELETE ON media, 
+BEGIN
+INSERT INTO archived_messages OLD 
+END//
+DROP TRIGGER IF EXISTS deleteSavedPosts
+CREATE TRIGGER deleteSavedPosts
+AFTER DELETE ON saved_posts, 
+BEGIN
+INSERT INTO archived_saved_posts OLD 
+END//
+DROP TRIGGER IF EXISTS deleteFavoritePosts
+CREATE TRIGGER deleteFavoritePosts
+AFTER DELETE ON favorite_posts, 
+BEGIN
+INSERT INTO archived_favorite_posts OLD 
+END//
+DROP TRIGGER IF EXISTS deleteLikes
+CREATE TRIGGER deleteLikes
+AFTER DELETE ON likes, 
+BEGIN
+INSERT INTO archived_likes OLD 
+END//
+DROP TRIGGER IF EXISTS deleteMedia
+CREATE TRIGGER deleteMedia
+AFTER DELETE ON media, 
+BEGIN
+INSERT INTO archived_media OLD 
+END//
+
+
+DROP TRIGGER IF EXISTS threadPropagation
+CREATE TRIGGER threadPropagation
+AFTER INSERT ON threads
+BEGIN
+DECLARE @user_ids
+SELECT @user_ids = JSON_VALUE(messages,'$.') from NEW
+UPDATE users 
+SET messages = JSON_MODIFY(users.messages, 'append $.', NEW.thread_id) WHERE users.user_id IN @usr_ids;
+END//
+
 DELIMITER ;
+
 -- Update event that checks against the previous trigger weekly to ensure all ages are up to date
-CREATE EVENT AGE_CHECK
+DROP EVENT IF EXISTS ageCheck
+CREATE EVENT IF NOT EXISTS ageCheck
 ON SCHEDULE EVERY 1 WEEK
 DO
     UPDATE USER
     SET age=TIMESTAMPDIFF(year, birth_date, CURDATE())
 
 -- Procedure to move data from users being deleted from the database into an archive table
-CREATE PROCEDURE delete_user(IN user_id INT)
+CREATE PROCEDURE archiveUser(IN user_id INT)
 BEGIN
 INSERT INTO archived_messages SELECT * FROM messages WHERE user_id={user_id};
 INSERT INTO archived_posts SELECT * FROM posts WHERE user_id={user_id};
@@ -159,5 +206,4 @@ INSERT INTO archived_likes SELECT * FROM likes WHERE user_id={user_id};
 UPDATE posts SET user_id=NULL WHERE user_id={user_id};
 UPDATE messages SET user_id=NULL WHERE user_id={user_id};
 UPDATE likes SET user_id=NULL WHERE user_id={user_id};
-DELETE FROM user where user_id={user_id};
 END;
