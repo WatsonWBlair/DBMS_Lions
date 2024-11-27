@@ -1,4 +1,7 @@
 -- OLAP Tables
+DROP DATABASE IF EXISTS try3;
+CREATE DATABASE try3;
+USE try3;
 DROP TABLE IF EXISTS users;
 CREATE TABLE users(
     user_id int NOT NULL,
@@ -131,136 +134,138 @@ DELIMITER //
 -- When Inserting a user record, calculate their age.
 DROP TRIGGER IF EXISTS ageCalc//
 CREATE TRIGGER ageCalc 
-AFTER INSERT ON user
+AFTER INSERT ON users
 FOR EACH ROW
 BEGIN
-    UPDATE user 
+    UPDATE users
     SET age = TIMESTAMPDIFF(YEAR, NEW.birth_date, CURDATE()) 
     WHERE user_id = NEW.user_id;
 END//
 
--- custom deletion implementation:
+-- -- custom deletion implementation:
 
--- OLAP tables have a `deleted` indicator
-DROP TRIGGER IF EXISTS deleteUser
-CREATE TRIGGER deleteUser
-INSTEAD OF DELETE ON user
-BEGIN
-    UPDATE users SET deleted=1 WHERE user_id = OLD.user_id;
-    archiveUser(OLD.user_id);
-END//
-DROP TRIGGER IF EXISTS deletePost
-CREATE TRIGGER deletePost
-INSTEAD OF DELETE ON posts, 
-BEGIN
-    UPDATE posts SET deleted=1 WHERE post_id = OLD.post_id;
-END//
+-- -- OLAP tables have a `deleted` indicator
+-- DROP TRIGGER IF EXISTS deleteUser
+-- CREATE TRIGGER deleteUser
+-- INSTEAD OF DELETE ON user
+-- BEGIN
+--     UPDATE users SET deleted=1 WHERE user_id = OLD.user_id;
+--     archiveUser(OLD.user_id);
+-- END//
+-- DROP TRIGGER IF EXISTS deletePost
+-- CREATE TRIGGER deletePost
+-- INSTEAD OF DELETE ON posts, 
+-- BEGIN
+--     UPDATE posts SET deleted=1 WHERE post_id = OLD.post_id;
+-- END//
 
--- OLTP tables have archived_ companion tables
-DROP TRIGGER IF EXISTS deleteMessages
-CREATE TRIGGER deleteMessages
-AFTER DELETE ON media, 
-BEGIN
-    INSERT INTO archived_messages OLD;
-END//
-DROP TRIGGER IF EXISTS deleteSavedPosts
-CREATE TRIGGER deleteSavedPosts
-AFTER DELETE ON saved_posts, 
-BEGIN
-    INSERT INTO archived_saved_posts OLD;
-END//
-DROP TRIGGER IF EXISTS deleteFavoritePosts
-CREATE TRIGGER deleteFavoritePosts
-AFTER DELETE ON favorite_posts, 
-BEGIN
-    INSERT INTO archived_favorite_posts OLD;
-END//
-DROP TRIGGER IF EXISTS deleteLikes
-CREATE TRIGGER deleteLikes
-AFTER DELETE ON likes, 
-BEGIN
-    INSERT INTO archived_likes OLD;
-END//
-DROP TRIGGER IF EXISTS deleteMedia
-CREATE TRIGGER deleteMedia
-AFTER DELETE ON media, 
-BEGIN
-    INSERT INTO archived_media OLD;
-END//
+-- -- OLTP tables have archived_ companion tables
+-- DROP TRIGGER IF EXISTS deleteMessages
+-- CREATE TRIGGER deleteMessages
+-- AFTER DELETE ON media, 
+-- BEGIN
+--     INSERT INTO archived_messages OLD;
+-- END//
+-- DROP TRIGGER IF EXISTS deleteSavedPosts
+-- CREATE TRIGGER deleteSavedPosts
+-- AFTER DELETE ON saved_posts, 
+-- BEGIN
+--     INSERT INTO archived_saved_posts OLD;
+-- END//
+-- DROP TRIGGER IF EXISTS deleteFavoritePosts
+-- CREATE TRIGGER deleteFavoritePosts
+-- AFTER DELETE ON favorite_posts, 
+-- BEGIN
+--     INSERT INTO archived_favorite_posts OLD;
+-- END//
+-- DROP TRIGGER IF EXISTS deleteLikes
+-- CREATE TRIGGER deleteLikes
+-- AFTER DELETE ON likes, 
+-- BEGIN
+--     INSERT INTO archived_likes OLD;
+-- END//
+-- DROP TRIGGER IF EXISTS deleteMedia
+-- CREATE TRIGGER deleteMedia
+-- AFTER DELETE ON media, 
+-- BEGIN
+--     INSERT INTO archived_media OLD;
+-- END//
 
--- Data Propagation:
--- our schema includes some data replication, these triggers ensure entity integrity.
--- note that replicated data points are not critical to platform operation.
-DROP TRIGGER IF EXISTS threadPropagation
-CREATE TRIGGER threadPropagation
-AFTER INSERT ON threads
-BEGIN
-    DECLARE @user_ids;
-    SELECT @user_ids = JSON_VALUE(messages,'$.') from NEW;
-    UPDATE users 
-    SET messages = JSON_MODIFY(users.messages, 'append $.', NEW.thread_id) WHERE users.user_id IN @user_ids;
-END//
+-- -- Data Propagation:
+-- -- our schema includes some data replication, these triggers ensure entity integrity.
+-- -- note that replicated data points are not critical to platform operation.
+-- DROP TRIGGER IF EXISTS threadPropagation
+-- CREATE TRIGGER threadPropagation
+-- AFTER INSERT ON threads
+-- BEGIN
+--     DECLARE @user_ids;
+--     SELECT @user_ids = JSON_VALUE(messages,'$.') from NEW;
+--     UPDATE users 
+--     SET messages = JSON_MODIFY(users.messages, 'append $.', NEW.thread_id) WHERE users.user_id IN @user_ids;
+-- END//
 
-DROP TRIGGER IF EXISTS likePropagation
-CREATE TRIGGER likePropagation
-AFTER INSERT ON likes
-BEGIN
-    DECLARE @post_id;
-    DECLARE @user_id;
-    SELECT @user_id = user_id, @post_id = post_id from NEW;
-    UPDATE users 
-    SET liked_posts = JSON_MODIFY(
-        users.liked_posts,
-        'append $.',
-        '{post_id:',@post_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
-END//
+-- DROP TRIGGER IF EXISTS likePropagation
+-- CREATE TRIGGER likePropagation
+-- AFTER INSERT ON likes
+-- BEGIN
+--     DECLARE @post_id;
+--     DECLARE @user_id;
+--     SELECT @user_id = user_id, @post_id = post_id from NEW;
+--     UPDATE users 
+--     SET liked_posts = JSON_MODIFY(
+--         users.liked_posts,
+--         'append $.',
+--         '{post_id:',@post_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
+-- END//
 
-DROP TRIGGER IF EXISTS postPropagation
-CREATE TRIGGER likePropagation
-AFTER INSERT ON posts
-BEGIN
-    DECLARE @post_id;
-    DECLARE @user_id;
-    SELECT @user_id = user_id, @post_id = post_id from NEW;
-    UPDATE users
-    SET posts = JSON_MODIFY(
-        users.posts,
-        'append $.',
-        '{post_id:',NEW.thread_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
-END//
+-- DROP TRIGGER IF EXISTS postPropagation
+-- CREATE TRIGGER likePropagation
+-- AFTER INSERT ON posts
+-- BEGIN
+--     DECLARE @post_id;
+--     DECLARE @user_id;
+--     SELECT @user_id = user_id, @post_id = post_id from NEW;
+--     UPDATE users
+--     SET posts = JSON_MODIFY(
+--         users.posts,
+--         'append $.',
+--         '{post_id:',NEW.thread_id,',thumbnail:',SELECT thumbnail FROM posts where post_id = @post_id ,'}') WHERE users.user_id = @user_id;
+-- END//
 
 
 
 -- Update event that checks against the previous trigger weekly to ensure all ages are up to date
-DROP EVENT IF EXISTS ageCheck;
-CREATE EVENT IF NOT EXISTS ageCheck
+DELIMITER //
+CREATE EVENT ageCheck
 ON SCHEDULE EVERY 1 WEEK
 DO
-    UPDATE USER
-    SET age=TIMESTAMPDIFF(year, birth_date, CURDATE());//
+BEGIN
+    UPDATE users
+    SET age=TIMESTAMPDIFF(year, birth_date, CURDATE());
 END//
+DELIMITER ;
 
 -- Procedure to move data from users being deleted from the database into an archive table
+DELIMITER //
 CREATE PROCEDURE archiveUser(IN user_id INT)
 BEGIN
-    INSERT INTO archived_messages SELECT * FROM messages WHERE user_id={user_id};
-    INSERT INTO archived_posts SELECT * FROM posts WHERE user_id={user_id};
-    INSERT INTO archived_likes SELECT * FROM likes WHERE user_id={user_id};
-    UPDATE posts SET user_id=NULL WHERE user_id={user_id};
-    UPDATE messages SET user_id=NULL WHERE user_id={user_id};
-    UPDATE likes SET user_id=NULL WHERE user_id={user_id};
+    INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
+    INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
+    INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
+    UPDATE posts SET user_id=NULL WHERE user_id=user_id;
+    UPDATE messages SET user_id=NULL WHERE user_id=user_id;
+    UPDATE likes SET user_id=NULL WHERE user_id=user_id;
 END//
 
 DELIMITER ;
 
-INSERT INTO users(user_id,name, user_name, email, birth_year, gender,advertisement_metadata JSON,user_metadata JSON,messages JSON,posts JSON, liked_posts JSON,deleted)
+INSERT INTO users(user_id,name, user_name, email, birth_year, gender,advertisement_metadata,user_metadata,messages,posts, liked_posts,deleted)
 VALUES(1, 'Mike Griffin', 'mjg', 'hotmail@gmail.com', 1999, 'male', 
     '{"interests": ["books", "sports"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
     '{"create_timestamp": 1698316800, "birth_date": 19850101, "parental_restrictions": false}', 
     '[{"thread_id": 1001, "subject": "Welcome!"}]', 
     '[{"id": 1, "thumbnail": null}, {"id": 2, "thumbnail": null}]', 
-    '[{"id": 3, "thumbnail": null}]', 
-    0),
+    '[{"id": 3, "thumbnail": null}]', 0),
     (2, 'Watson Blair', 'WLB', 'gmail@compuserve.com', 1988, 'male', 
     '{"interests": ["tech", "running"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
     '{"create_timestamp": 1698316800, "birth_date": 19880101, "parental_restrictions": false}', 
@@ -366,4 +371,4 @@ VALUES
 (102, 2, 3, '2024-11-25 15:00:00'), 
 (101, 3, 2, '2024-11-25 15:30:00'), 
 (103, 4, 5, '2024-11-25 16:00:00'), 
-(104, 1, 4, '2024-11-25 16:30:00'); 
+(104, 1, 4, '2024-11-25 16:30:00');
