@@ -4,7 +4,7 @@ CREATE DATABASE try3;
 USE try3;
 DROP TABLE IF EXISTS users;
 CREATE TABLE users(
-    user_id int NOT NULL,
+    uid int NOT NULL,
     name NVARCHAR(255) NOT NULL,
     user_name NVARCHAR(255) NOT NULL,
     email NVARCHAR(255) NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE users(
         -- enables `lazy loading` by providing basic information for immediate display
         -- thumbnail refrences a small image resource for the post.
     deleted TINYINT(1), 
-    PRIMARY KEY (user_id)
+    PRIMARY KEY (uid)
 );
 
 DROP TABLE IF EXISTS posts;
@@ -39,7 +39,7 @@ CREATE TABLE posts(
     commentCount int,
     likeCount int,
     PRIMARY KEY (post_id),
-    FOREIGN KEY (poster_id) REFERENCES users(user_id)
+    FOREIGN KEY (poster_id) REFERENCES users(uid)
 );
 
 -- OLTP Tables
@@ -53,22 +53,22 @@ CREATE TABLE media(
     media BLOB NOT NULL,
     thumbnail BLOB NOT NULL,
     PRIMARY KEY(media_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES users(uid)
 );
 
 DROP TABLE IF EXISTS saved_posts;
 CREATE TABLE saved_posts(
-    user_id int NOT NULL,
+    uid int NOT NULL,
     post_id int NOT NULL,
     deactivated TINYINT(1),
-    PRIMARY KEY(user_id, post_id)
+    PRIMARY KEY(uid, post_id)
 );
 DROP TABLE IF EXISTS favorite_posts;
 CREATE TABLE favorite_posts(
-    user_id int NOT NULL,
+    uid int NOT NULL,
     post_id int NOT NULL,
     deactivated TINYINT(1),
-    PRIMARY KEY(user_id, post_id)
+    PRIMARY KEY(uid, post_id)
 );
 DROP TABLE IF EXISTS comments;
 CREATE TABLE comments(
@@ -79,7 +79,7 @@ CREATE TABLE comments(
     content JSON,
     deleted TINYINT(1),
     PRIMARY KEY (comment_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES users(uid)
 );
 
 
@@ -100,7 +100,7 @@ CREATE TABLE messages(
     deleted TINYINT(1) NOT NULL,
     PRIMARY KEY (timestamp, sender_id),
     FOREIGN KEY (media_id) REFERENCES media(media_id),
-    FOREIGN KEY (sender_id) REFERENCES users(user_id),
+    FOREIGN KEY (sender_id) REFERENCES users(uid),
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id)
 );
 -- added from Mike's individual work to create a separate table independently storing unique likes
@@ -112,7 +112,7 @@ CREATE TABLE likes(
     comment_id INT NOT NULL,
     time_liked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES posts(post_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(uid) ON DELETE CASCADE,
     FOREIGN KEY (comment_id) REFERENCES comments(comment_id),
     UNIQUE (user_id, post_id, comment_id)
 );
@@ -132,15 +132,15 @@ CREATE TABLE archived_media LIKE media;
 -- Trigger that converts DOB into age using TIMESTAMPDIFF function
 DELIMITER //
 -- When Inserting a user record, calculate their age.
-DROP TRIGGER IF EXISTS ageCalc//
-CREATE TRIGGER ageCalc 
-AFTER INSERT ON users
-FOR EACH ROW
-BEGIN
-    UPDATE users
-    SET age = TIMESTAMPDIFF(YEAR, NEW.birth_date, CURDATE()) 
-    WHERE user_id = NEW.user_id;
-END//
+-- DROP TRIGGER IF EXISTS ageCalc//
+-- CREATE TRIGGER ageCalc 
+-- AFTER INSERT ON users
+-- FOR EACH ROW
+-- BEGIN
+--     UPDATE users
+--     SET age = TIMESTAMPDIFF(YEAR, NEW.birth_date, CURDATE()) 
+--     WHERE user_id = NEW.user_id;
+-- END//
 
 -- -- custom deletion implementation:
 
@@ -235,31 +235,31 @@ END//
 
 
 -- Update event that checks against the previous trigger weekly to ensure all ages are up to date
-DELIMITER //
-CREATE EVENT ageCheck
-ON SCHEDULE EVERY 1 WEEK
-DO
-BEGIN
-    UPDATE users
-    SET age=TIMESTAMPDIFF(year, birth_date, CURDATE());
-END//
-DELIMITER ;
+-- DELIMITER //
+-- CREATE EVENT ageCheck
+-- ON SCHEDULE EVERY 1 WEEK
+-- DO
+-- BEGIN
+--     UPDATE users
+--     SET age=TIMESTAMPDIFF(year, birth_date, CURDATE());
+-- END//
+-- DELIMITER ;
 
 -- Procedure to move data from users being deleted from the database into an archive table
-DELIMITER //
-CREATE PROCEDURE archiveUser(IN user_id INT)
-BEGIN
-    INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
-    INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
-    INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
-    UPDATE posts SET user_id=NULL WHERE user_id=user_id;
-    UPDATE messages SET user_id=NULL WHERE user_id=user_id;
-    UPDATE likes SET user_id=NULL WHERE user_id=user_id;
-END//
+-- DELIMITER //
+-- CREATE PROCEDURE archiveUser(IN user_id INT)
+-- BEGIN
+--     INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
+--     INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
+--     INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
+--     UPDATE posts SET user_id=NULL WHERE user_id=user_id;
+--     UPDATE messages SET user_id=NULL WHERE user_id=user_id;
+--     UPDATE likes SET user_id=NULL WHERE user_id=user_id;
+-- END//
 
-DELIMITER ;
+-- DELIMITER ;
 
-INSERT INTO users(user_id,name, user_name, email, birth_year, gender,advertisement_metadata,user_metadata,messages,posts, liked_posts,deleted)
+INSERT INTO users(uid, name, user_name, email, birth_year, gender, advertisement_metadata, user_metadata, messages,posts, liked_posts,deleted)
 VALUES(1, 'Mike Griffin', 'mjg', 'hotmail@gmail.com', 1999, 'male', 
     '{"interests": ["books", "sports"], "targeting": {"ads_enabled": true, "category": "premium"}}', 
     '{"create_timestamp": 1698316800, "birth_date": 19850101, "parental_restrictions": false}', 
