@@ -245,19 +245,19 @@ DELIMITER //
 -- END//
 -- DELIMITER ;
 
--- Procedure to move data from users being deleted from the database into an archive table
--- DELIMITER //
--- CREATE PROCEDURE archiveUser(IN user_id INT)
--- BEGIN
---     INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
---     INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
---     INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
---     UPDATE posts SET user_id=NULL WHERE user_id=user_id;
---     UPDATE messages SET user_id=NULL WHERE user_id=user_id;
---     UPDATE likes SET user_id=NULL WHERE user_id=user_id;
--- END//
+Procedure to move data from users being deleted from the database into an archive table
+DELIMITER //
+CREATE PROCEDURE archiveUser(IN user_id INT)
+BEGIN
+    INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
+    INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
+    INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
+    UPDATE posts SET user_id=NULL WHERE user_id=user_id;
+    UPDATE messages SET user_id=NULL WHERE user_id=user_id;
+    UPDATE likes SET user_id=NULL WHERE user_id=user_id;
+END//
 
--- DELIMITER ;
+DELIMITER ;
 
 INSERT INTO users(uid, name, user_name, email, birth_year, gender, advertisement_metadata, user_metadata, messages,posts, liked_posts,deleted)
 VALUES(1, 'Mike Griffin', 'mjg', 'hotmail@gmail.com', 1999, 'male', 
@@ -372,3 +372,119 @@ VALUES
 (101, 3, 2, '2024-11-25 15:30:00'), 
 (103, 4, 5, '2024-11-25 16:00:00'), 
 (104, 1, 4, '2024-11-25 16:30:00');
+
+--QUERIES FOR PART 1--
+
+--Query using 'WHERE' and 'OR'--
+UPDATE users 
+SET gender = 'non-binary'
+WHERE uid = 1 OR birth_year = 1996;
+
+--Query using 'ORDER BY'--
+SELECT * FROM comment
+ORDER BY reply_to ASC;
+
+--Query using GROUP BY--
+SELECT COUNT(uid)
+FROM users
+GROUP BY birth_year;
+
+--Query using Having--
+Select COUNT(uid), advertisement_metadata,
+FROM users
+GROUP BY advertisement_metadata
+HAVING COUNT(uid)>2;
+
+--Query using between and AND--
+Select content FROM posts
+WHERE post_id BETWEEN 1 AND 3
+AND poster_id >11;
+
+--Query using WITH--
+WITH personal_info as(SELECT advertisement_metadata ->'$.Interests' as Interests AND user_metadata->'$.birthdate' as Birthdate)
+SELECT Interests, Birthdate FROM personal_info;
+
+
+--QUERIES FOR PART 2--
+
+--Aggregate Function--
+SELECT AVG(CHAR_LENGTH(message)) as AVG_MESSAGE_LENGTH
+FROM messages;
+SELECT MAX(CHAR_LENGTH(content))
+FROM posts;
+
+--User Defined Functions--
+Procedure to move data from users being deleted from the database into an archive table
+DELIMITER //
+CREATE PROCEDURE archiveUser(IN user_id INT)
+BEGIN
+    INSERT INTO archived_messages SELECT * FROM messages WHERE user_id=user_id;
+    INSERT INTO archived_posts SELECT * FROM posts WHERE user_id=user_id;
+    INSERT INTO archived_likes SELECT * FROM likes WHERE user_id=user_id;
+    UPDATE posts SET user_id=NULL WHERE user_id=user_id;
+    UPDATE messages SET user_id=NULL WHERE user_id=user_id;
+    UPDATE likes SET user_id=NULL WHERE user_id=user_id;
+END//
+
+DELIMITER ;
+
+--Triggers--
+Triggers and Procedures
+Trigger that converts DOB into age using TIMESTAMPDIFF function
+DELIMITER //
+When Inserting a user record, calculate their age.
+DROP TRIGGER IF EXISTS ageCalc//
+CREATE TRIGGER ageCalc 
+AFTER INSERT ON users
+FOR EACH ROW
+BEGIN
+    UPDATE users
+    SET age = TIMESTAMPDIFF(YEAR, NEW.birth_date, CURDATE()) 
+    WHERE user_id = NEW.user_id;
+END//
+DELIMITER;
+
+--Views--
+create view legal_info as
+select uid, name, birth_year, gender
+from users;
+
+create view language as
+select content
+from posts
+AND
+select content
+from comments
+AND
+select message
+from messages;
+
+
+--QUERIES FOR PART 3--
+--Scalar Sub-Queries--
+select name from users where u_id=(
+    select poster_id
+    from posts
+    where CHAR_LENGTH(content)>5
+);
+select post_id from posts where poster_id=(
+    select user_id
+    from users
+    where gender='female' OR 'non-binary'
+);
+
+--Nested Queries--
+select thread_id
+from messages
+where CHAR_LENGTH(content)<(
+    select AVG(CHAR_LENGTH(content)
+    from messages)
+);
+select content ->'$.text' as text
+(CHAR_LENGTH(content->'$.text')-CHAR_LENGTH(REPLACE(content->'$.text','enjoy',''))/CHAR_LENGTH('enjoy') as enjoy_occurrence)
+from messages
+where (CHAR_LENGTH(content->'$.text')-CHAR_LENGTH(REPLACE(content->'$.text','enjoy',''))/CHAR_LENGTH('enjoy')>0)
+;
+
+
+
