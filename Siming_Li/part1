@@ -1,0 +1,78 @@
+
+INSERT INTO Users (Name, Email, Deleted) VALUES
+('leo', 'leo@123.com', 0),
+('Lu', 'Lu@123.com', 0),
+('Zhang San', 'ZhangSan@123.com', 1),
+('Li Si', 'LiSi@123.com', 0),
+('Wang Wu', 'WangWu@123.com', 0);
+
+INSERT INTO Posts (PosterID, Thumbnail, Content, Deleted, Private) VALUES
+(1, 101, 'Post about SQL', 0, 0),
+(2, 102, 'Learning databases', 0, 1),
+(3, 103, 'Best practices for queries', 0, 0),
+(4, 104, 'Database optimization', 1, 0),
+(5, 105, 'Advanced SQL features', 0, 0);
+
+INSERT INTO SavedPosts (UserID, PostID, Deactivated) VALUES
+(1, 1, 0),
+(2, 3, 0),
+(3, 5, 1),
+(4, 2, 0),
+(5, 4, 0);
+
+INSERT INTO FavoriatePosts (UserID, PostID, Deactivated) VALUES
+(1, 3, 0),
+(2, 5, 1),
+(3, 1, 0),
+(4, 4, 0),
+(5, 2, 0);
+
+INSERT INTO Comments (OnPost, ReplyTo, FromID, Content, Deleted) VALUES
+(1, NULL, 2, 'Great post!', 0),
+(2, NULL, 1, 'Interesting topic!', 0),
+(3, NULL, 4, 'Needs more details.', 0),
+(4, 2, 3, 'Reply to comment 2', 1),
+(5, NULL, 5, 'Helpful insights.', 0);
+
+INSERT INTO Media (UserID, Timestamp, Media) VALUES
+(1, '2024-11-01 12:00:00', 'image1'),
+(2, '2024-11-02 13:30:00', 'image2'),
+(3, '2024-11-03 15:45:00', 'image3'),
+(4, '2024-11-04 17:00:00', 'image4'),
+(5, '2024-11-05 18:20:00', 'image5');
+
+INSERT INTO Messages (SenderID, ReceiverID, Message, MediaID, Deleted) VALUES
+(1, 2, 'Hello Lu!', 1, 0),
+(2, 3, 'Hi Zhang!', NULL, 0),
+(3, 4, 'How are you, Li?', NULL, 0),
+(4, 5, 'Hello Wang!', 2, 1),
+(5, 1, 'Thanks Leo!', NULL, 0);
+
+
+SELECT Content 
+FROM Posts
+WHERE Deleted = 0 AND Private = 0;-- (Query all published non-private post content)
+
+SELECT Name, Email 
+FROM Users
+WHERE UserID BETWEEN 1 AND 3 OR Deleted = 1;-- (Query the user whose ID is between 1 and 3 or has been deleted)
+
+SELECT UserID, Timestamp 
+FROM Media
+ORDER BY Timestamp ASC;-- (Query all media records by creation time)
+
+SELECT UserID, COUNT(PostID) AS SavedCount
+FROM SavedPosts
+GROUP BY UserID
+HAVING COUNT(PostID) >= 1;-- (Count the number of posts saved by each user and display the users whose number of saved posts is greater than or equal to 1)
+
+WITH CommentDetails AS (
+    SELECT Comments.Content AS CommentContent, Posts.Content AS PostContent
+    FROM Comments
+    JOIN Posts ON Comments.OnPost = Posts.PostID
+)
+SELECT * FROM CommentDetails;-- (Query all comments and their associated post content)
+
+
+
+、
